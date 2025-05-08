@@ -54,5 +54,35 @@ namespace lab3
                             return false;
                 return true;
             }
-        }
+            public static void MultiplyThreaded(double[,] A, double[,] B, double[,] result, int size, int threadCount)
+            {
+                Thread[] threads = new Thread[threadCount];
+                int rowsPerThread = size / threadCount;
+
+                for (int t = 0; t < threadCount; t++)
+                {
+                    int startRow = t * rowsPerThread;
+                    int endRow = (t == threadCount - 1) ? size : startRow + rowsPerThread;
+
+                    threads[t] = new Thread(() =>
+                    {
+                        for (int i = startRow; i < endRow; i++)
+                        {
+                            for (int j = 0; j < size; j++)
+                            {
+                                double sum = 0;
+                                for (int k = 0; k < size; k++)
+                                    sum += A[i, k] * B[k, j];
+                                result[i, j] = sum;
+                            }
+                        }
+                    });
+                    threads[t].Start();
+                }
+
+                foreach (Thread thread in threads)
+                    thread.Join();
+            }
     }
+
+}

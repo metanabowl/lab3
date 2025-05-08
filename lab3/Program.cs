@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
+using System.IO;
 
 namespace lab3
 {
@@ -7,31 +8,59 @@ namespace lab3
     {
         static void Main(string[] args)
         {
-            Console.Write("Podaj rozmiar macierzy: ");
-            int size = int.Parse(Console.ReadLine());
+            int[] sizes = { 200, 500, 1000, 2000 };
+            int[] threadsList = { 1, 2, 4, 8, 12, 24 };
+            int repetitions = 3;
+            string fileName = "wyniki.csv";
 
-            Console.Write("Podaj ilość wątków: ");
-            int threads = int.Parse(Console.ReadLine());
+            using (StreamWriter writer = new StreamWriter(fileName))
+            {
+                writer.WriteLine("Rozmiar,Metoda,Wątki,ŚredniCzas(ms),Poprawność");
 
-            Console.WriteLine($"\nMnożenie macierzy {size}x{size} - liczba wątków: {threads}");
+                foreach (int size in sizes)
+                {
+                    double[,] A = MatrixMultiplier.GenerateMatrix(size);
+                    double[,] B = MatrixMultiplier.GenerateMatrix(size);
+                    double[,] resultSeq = new double[size, size];
+                    MatrixMultiplier.MultiplySequential(A, B, resultSeq, size);
 
-            double[,] A = MatrixMultiplier.GenerateMatrix(size);
-            double[,] B = MatrixMultiplier.GenerateMatrix(size);
-            double[,] resultSeq = new double[size, size];
-            double[,] resultPar = new double[size, size];
+                    foreach (int threads in threadsList)
+                    {
+                        Console.WriteLine($"[{DateTime.Now}] Rozmiar: {size}, Wątki: {threads}");
 
-            var sw = Stopwatch.StartNew();
-            MatrixMultiplier.MultiplySequential(A, B, resultSeq, size);
-            sw.Stop();
-            Console.WriteLine($"Czas (sekwencyjnie): {sw.ElapsedMilliseconds} ms");
+                        double avgTimeHigh = 0, avgTimeLow = 0;
+                        bool correctHigh = true, correctLow = true;
 
-            sw.Restart();
-            MatrixMultiplier.MultiplyParallel(A, B, resultPar, size, threads);
-            sw.Stop();
-            Console.WriteLine($"Czas (równolegle): {sw.ElapsedMilliseconds} ms");
+                        for (int i = 0; i < repetitions; i++)
+                        {
+                            double[,] resultPar = new double[size, size];
+                            var sw = Stopwatch.StartNew();
+                            MatrixMultiplier.MultiplyParallel(A, B, resultPar, size, threads);
+                            sw.Stop();
+                            avgTimeHigh += sw.ElapsedMilliseconds;
+                            correctHigh &= MatrixMultiplier.CompareMatrices(resultSeq, resultPar);
+                        }
+                        avgTimeHigh /= repetitions;
+                        writer.WriteLine($"{size},Wysokopoziomowa,{threads},{avgTimeHigh},{correctHigh}");
 
-            bool areEqual = MatrixMultiplier.CompareMatrices(resultSeq, resultPar);
-            Console.WriteLine($"Macierze wynikowe są identyczne? {(areEqual ? "Tak" : "Nie")}");
+                        for (int i = 0; i < repetitions; i++)
+                        {
+                            double[,] resultLow = new double[size, size];
+                            var sw = Stopwatch.StartNew();
+                            MatrixMultiplier.MultiplyThreaded(A, B, resultLow, size, threads);
+                            sw.Stop();
+                            avgTimeLow += sw.ElapsedMilliseconds;
+                            correctLow &= MatrixMultiplier.CompareMatrices(resultSeq, resultLow);
+                        }
+                        avgTimeLow /= repetitions;
+                        writer.WriteLine($"{size},Niskopoziomowa,{threads},{avgTimeLow},{correctLow}");
+
+                        writer.Flush(); // na wypadek awarii
+                    }
+                }
+            }
+
+            Console.WriteLine("\nZakończono testy. Wyniki zapisano do pliku: wyniki.csv");
         }
     }
 }
